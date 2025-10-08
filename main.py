@@ -3,6 +3,11 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import time
 import re
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import r2_score, mean_squared_error
+from sklearn import tree
+import matplotlib.pyplot as plt
 
 titles, prices, ratings = [], [], []
 
@@ -92,7 +97,7 @@ df['Storage_GB'] = df['Storage_GB'].astype(int)
 df['BrandValid'] = df['Brand'].apply( lambda x : x if x and x.lower() in valid_brands else None)
 df['Brand'] = df['BrandValid'].ffill()
 df['Brand'] = df['Brand'].apply(lambda x : x.lower())
-df['Brand'].replace( brands , inplace = True)
+df['Brand'] = df['Brand'].replace( brands )
 df.drop(columns = ['BrandValid', 'Title', 'Description'], inplace = True)
 df.dropna(inplace = True)
 df = df.reindex( columns = [ 'Brand', 'RAM_GB', 'Storage_GB', 'Rating', 'Price'] )
@@ -100,3 +105,20 @@ df = df.reindex( columns = [ 'Brand', 'RAM_GB', 'Storage_GB', 'Rating', 'Price']
 df.to_csv("amazon_laptops.csv", index=False)
 print("Scraping done. Saved to amazon_laptops.csv")
 print(df.to_string())
+
+X = df[['Brand', 'RAM_GB', 'Storage_GB', 'Rating']]
+y = df['Price']
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, random_state = 42)
+rf = RandomForestRegressor(n_estimators = 100, random_state = 42)
+rf.fit(X_train, y_train)
+y_pred = rf.predict(X_test)
+
+print(f'r2_score : {r2_score(y_test, y_pred)}')
+print(f'mse : {mean_squared_error(y_test, y_pred)}')
+#Predict the price for a laptop with Brand 4 (Apple), 4GB RAM, 512GB Storage, and a rating of 4.0
+print(rf.predict([[4, 16, 512, 4.0]]))
+
+plt.figure(figsize =(20, 10))
+tree.plot_tree(rf.estimator_[0], feature_names = X_train.columns, filled = True, fontsize = 8)
+plt.show()
