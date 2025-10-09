@@ -7,6 +7,8 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score, mean_squared_error
 from sklearn import tree
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 
 titles, prices, ratings = [], [], []
@@ -50,7 +52,6 @@ for page in range(1,5) :
   time.sleep(2)
 
 valid_brands = ['hp', 'lenovo', 'acer', 'apple', 'samsung', 'nimo', 'asus', 'jumper', 'dell', 'microsoft']
-brands = { 'hp' : 1 , 'lenovo' : 2 , 'acer' : 3 , 'apple' : 4 , 'samsung' : 5 , 'nimo' : 6 , 'asus' : 7 , 'jumper' : 8 , 'dell' : 9 }
 
 df = pd.DataFrame({
     "Title": titles,
@@ -97,7 +98,6 @@ df['Storage_GB'] = df['Storage_GB'].astype(int)
 df['BrandValid'] = df['Brand'].apply( lambda x : x if x and x.lower() in valid_brands else None)
 df['Brand'] = df['BrandValid'].ffill()
 df['Brand'] = df['Brand'].apply(lambda x : x.lower())
-df['Brand'] = df['Brand'].replace( brands )
 df.drop(columns = ['BrandValid', 'Title', 'Description'], inplace = True)
 df.dropna(inplace = True)
 df = df.reindex( columns = [ 'Brand', 'RAM_GB', 'Storage_GB', 'Rating', 'Price'] )
@@ -106,7 +106,10 @@ df.to_csv("amazon_laptops.csv", index=False)
 print("Scraping done. Saved to amazon_laptops.csv")
 print(df.to_string())
 
-X = df[['Brand', 'RAM_GB', 'Storage_GB', 'Rating']]
+brands = pd.get_dummies(df['Brand'])
+brand_columns = brands.columns
+print(brands.to_string())
+X = pd.concat([brands, df[['RAM_GB', 'Storage_GB', 'Rating']]], axis = 1)
 y = df['Price']
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, random_state = 42)
@@ -114,11 +117,39 @@ rf = RandomForestRegressor(n_estimators = 100, random_state = 42)
 rf.fit(X_train, y_train)
 y_pred = rf.predict(X_test)
 
+new_featured = pd.DataFrame({ 'Brand' : ['apple'] , 'RAM_GB' : [4], 'Storage_GB' : [512] , 'Rating' : [4.0]})
+new_brand = pd.get_dummies(new_featured['Brand'])
+for col in brand_columns :
+if col not in new_brand.columns :
+  new_brand[col] = 0
+new_brand = new_brand[brand_columns]
+X_new = pd.concat([new_brand, new_featured[['RAM_GB', 'Storage_GB', 'Rating' ]]], axis = 1)
+
 print(f'r2_score : {r2_score(y_test, y_pred)}')
 print(f'mse : {mean_squared_error(y_test, y_pred)}')
+print(rf.feature_importances_)
 #Predict the price for a laptop with Brand 4 (Apple), 4GB RAM, 512GB Storage, and a rating of 4.0
-print(rf.predict([[4, 16, 512, 4.0]]))
-
+# The order of features in X_train is 'acer', 'apple', 'asus', 'dell', 'hp', 'lenovo', 'RAM_GB', 'Storage_GB', 'Rating'
+print(rf.predict(X_new))
 plt.figure(figsize =(20, 10))
-tree.plot_tree(rf.estimator_[0], feature_names = X_train.columns, filled = True, fontsize = 8)
+tree.plot_tree(rf.estimators_[0], feature_names = X_train.columns, filled = True, fontsize = 8)
+plt.show()
+
+inertia = []
+for i in range(1,11) :
+ kmeans = KMeans(n_clusters = i, n_init = 10, random_state = 42)
+ kmeans.fit(X)
+ inertia.append(kmeans.inertia_)
+plt.plot(range(1,11), inertia, marker = 'o')
+plt.show()
+
+pca = PCA(n_components = 1)
+X_ = pca.fit_transform(X)
+kmeans = KMeans(n_clusters = 3)
+kmeans.fit(X)
+df['Clusters'] = kmeans.predict(X)
+cluster = kmeans.predict(X_new)[0]
+print(df[df['Clusters'] == cluster]['Price'].mean())
+
+plt.scatter(X_,y, c = kmeans.labels_)
 plt.show()
