@@ -151,5 +151,18 @@ df['Clusters'] = kmeans.predict(X)
 cluster = kmeans.predict(X_new)[0]
 print(df[df['Clusters'] == cluster]['Price'].mean())
 
+def classify_cluster(data) :
+ label = kmeans.predict(data)
+ prices = []
+for i in [0, 1, 2]:
+  prices.append(df[df['Clusters'] == i]['Price'].mean())
+ prices.sort()
+ cluster_classes = { prices[0] : 'budget', prices[1] : 'mid_range', prices[2] : 'premium'}
+ class_price = df[df['Clusters'] == label[0]]['Price'].mean()
+return cluster_classes[class_price]
+
+print(classify_cluster(X_new))
+
+
 plt.scatter(X_,y, c = kmeans.labels_)
 plt.show()
